@@ -7,7 +7,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import cv2
+import numpy as np
+
 from clippergod.pipeline.media import (
+    create_preview_proxy,
     import_media,
     needs_proxy,
     parse_rotation,
@@ -51,6 +55,30 @@ class TestProxyGeometry(unittest.TestCase):
         self.assertIn("veryfast", proxy_args("libx264", 540))
         self.assertIn("p1", proxy_args("h264_nvenc", 540))
         self.assertIn("2M", proxy_args("libopenh264", 540))
+
+
+class TestBrowserPreviewProxy(unittest.TestCase):
+    def test_preview_proxy_is_h264_playable_and_preserves_aspect(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source.avi"
+            writer = cv2.VideoWriter(
+                str(source), cv2.VideoWriter_fourcc(*"MJPG"), 10, (320, 240),
+            )
+            for index in range(10):
+                writer.write(np.full((240, 320, 3), index * 10, dtype=np.uint8))
+            writer.release()
+
+            proxy = create_preview_proxy(source, root / "studio")
+
+            capture = cv2.VideoCapture(str(proxy))
+            self.assertTrue(capture.isOpened())
+            ok, frame = capture.read()
+            capture.release()
+            self.assertTrue(ok)
+            self.assertEqual(frame.shape[0], 240)
+            self.assertEqual(frame.shape[1], 320)
+            self.assertEqual(proxy.parent, root / "studio" / "source")
 
 
 class TestImportWithoutProjectWrite(unittest.TestCase):

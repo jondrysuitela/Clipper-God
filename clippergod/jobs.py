@@ -34,7 +34,7 @@ from .pipeline.download import (
     is_url,
     probe_url,
 )
-from .pipeline.media import import_media
+from .pipeline.media import create_preview_proxy, import_media
 from .pipeline.runner import OUTPUT_FORMATS, RunConfig, run, words_to_dicts
 from .project.schema import fingerprint_file
 from .progress import CancelToken, CancelledError, Progress
@@ -613,7 +613,9 @@ class JobManager:
                 by_id = {str(index): candidate for index, candidate in enumerate(cands)}
                 cands = [by_id[candidate_id] for candidate_id, _analysis in ranked]
                 scores = dict(ranked)
-        selected = cands[:limit] if ollama_model else []
+        ranked_count = len(cands)
+        selected = cands[:limit]
+        cands = selected
         clips = [{"start": c.start, "end": c.end, "title": c.title,
                   "score": c.score, "layout": layout, "vps": c.vps}
                  for c in cands]
@@ -628,6 +630,7 @@ class JobManager:
             extra={"source_url": meta.get("webpage_url"),
                    "source_id": meta.get("id"), "preview": True,
                    "candidate_target": target,
+                   "candidate_limit": limit,
                    "transcript_scope": "candidate_windows" if preview_only else "full_source",
                    "output_format": meta.get("output_format", "portrait")},
         )
@@ -675,7 +678,7 @@ class JobManager:
         selected_ranges = [(c.start, c.end, c.title) for c in selected]
         if ollama_model and warning is None:
             summary = (
-                f"Ollama {ollama_model} merangking {len(cands)} kandidat; "
+                f"Ollama {ollama_model} merangking {ranked_count} kandidat; "
                 f"{len(selected)} dipilih otomatis untuk ditinjau."
             )
         elif warning:
@@ -837,11 +840,18 @@ class JobManager:
                         cancel=job.cancel_token,
                     )
                     job.cancel_token.raise_if_cancelled()
+                if video is not None:
+                    job.update("video_preview", 95, "menyiapkan format video untuk preview Studio")
+                    preview_proxy = create_preview_proxy(
+                        video, self.out_dir, cancel=job.cancel_token,
+                    )
                     store = ProjectStore(self.out_dir / "project.cgproj")
                     with store.locked():
                         project = store.load()
-                        project.media.path = str(video)
-                        project.media.fingerprint = fingerprint_file(video)
+                        if source_url:
+                            project.media.path = str(video)
+                            project.media.fingerprint = fingerprint_file(video)
+                        project.extra["preview_proxy"] = str(preview_proxy)
                         store.save(project)
 
                 preview_project = ProjectStore(
@@ -949,11 +959,20 @@ class JobManager:
             job.cancel_token.raise_if_cancelled()
             if video is None:
                 raise RuntimeError("video sumber tidak tersedia")
-            if is_url(source):
+            job.update("video_preview", 10, "menyiapkan format video untuk preview Studio")
+            preview_proxy = create_preview_proxy(
+                video, self.out_dir, cancel=job.cancel_token,
+            )
+            if (
+                is_url(source)
+                or preview_project.extra.get("preview_proxy") != str(preview_proxy)
+            ):
                 with store.locked():
                     project = store.load()
-                    project.media.path = str(video)
-                    project.media.fingerprint = fingerprint_file(video)
+                    if is_url(source):
+                        project.media.path = str(video)
+                        project.media.fingerprint = fingerprint_file(video)
+                    project.extra["preview_proxy"] = str(preview_proxy)
                     store.save(project)
             if not words:
                 job.update("transcribe_clip", 12, f"menyiapkan audio klip · ASR {model}")

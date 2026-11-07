@@ -20,7 +20,7 @@ from pathlib import Path
 
 from ..project.schema import MediaRef, Project, fingerprint_file
 from ..project.store import ProjectStore
-from .render import RenderError, choose_encoder, probe_video, resolve_ffmpeg
+from .render import RenderError, _run, choose_encoder, probe_video, resolve_ffmpeg
 
 ROTATION_RE = re.compile(r"rotation of (-?\d+(?:\.\d+)?) degrees")
 SIZE_RE = re.compile(r"Video:.*?(\d{2,5})x(\d{2,5})")
@@ -59,6 +59,52 @@ def proxy_args(encoder: str, height_px: int) -> list[str]:
     if encoder == "libopenh264":
         return ["-c:v", encoder, "-b:v", "2M"]
     return ["-c:v", encoder, "-preset", "veryfast", "-b:v", "2M"]
+
+
+def create_preview_proxy(
+    video: str | Path,
+    out_dir: str | Path,
+    *,
+    cancel=None,
+    height_px: int = 540,
+    max_width: int = 960,
+) -> Path:
+    """Create a browser-friendly H.264 preview while retaining source quality."""
+    source = Path(video)
+    if not source.is_file():
+        raise MediaError(f"video tidak ditemukan: {source}")
+    info = probe_video(source)
+    width, height = int(info["width"]), int(info["height"])
+    if width <= 0 or height <= 0:
+        raise MediaError(f"dimensi video sumber tidak valid: {source}")
+    scale = min(1.0, height_px / height, max_width / width)
+    target_w = max(2, int(round(width * scale / 2)) * 2)
+    target_h = max(2, int(round(height * scale / 2)) * 2)
+
+    out = Path(out_dir) / "source"
+    out.mkdir(parents=True, exist_ok=True)
+    fingerprint = fingerprint_file(source) or source.name
+    proxy = out / f"preview-{fingerprint}.mp4"
+    if proxy.is_file():
+        return proxy
+    temporary = proxy.with_name(proxy.stem + ".tmp.mp4")
+    encoder, _license = choose_encoder()
+    command = [
+        resolve_ffmpeg(), "-hide_banner", "-loglevel", "error", "-y",
+        "-i", str(source),
+        "-map", "0:v:0", "-map", "0:a:0?",
+        "-vf", f"scale={target_w}:{target_h}:flags=fast_bilinear",
+        *proxy_args(encoder, height_px),
+        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k",
+        "-movflags", "+faststart", str(temporary),
+    ]
+    try:
+        _run(command, cancel)
+        temporary.replace(proxy)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+    return proxy
 
 
 def _stderr_of(args: list[str]) -> str:

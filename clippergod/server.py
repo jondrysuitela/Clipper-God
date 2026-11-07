@@ -44,6 +44,18 @@ VIDEO_EXTENSIONS = {".avi", ".m4v", ".mkv", ".mov", ".mp4", ".webm"}
 
 
 def _local_source_file(root: Path, project) -> Path | None:
+    preview_proxy = project.extra.get("preview_proxy")
+    if isinstance(preview_proxy, str) and preview_proxy.strip():
+        proxy_path = Path(preview_proxy)
+        try:
+            resolved_proxy = proxy_path.resolve()
+            if (
+                root.resolve() in resolved_proxy.parents
+                and resolved_proxy.is_file()
+            ):
+                return resolved_proxy
+        except OSError:
+            pass
     source = Path(project.media.path)
     if source.is_file():
         return source

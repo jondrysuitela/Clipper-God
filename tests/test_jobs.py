@@ -14,7 +14,7 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
-from clippergod.core.models import Word
+from clippergod.core.models import ClipCandidate, Word
 from clippergod.jobs import Job, JobManager, _words_in_candidate_windows
 from clippergod.pipeline.local_hook_ai import HookAnalysis, OllamaUnavailableError
 from clippergod.project.schema import Clip, MediaRef, Project, fingerprint_file
@@ -157,6 +157,42 @@ class JobTest(unittest.TestCase):
         self.assertTrue(result)
         self.assertNotIn("jauh", [word.text for word in result])
 
+    def test_preview_persists_only_the_requested_number_of_candidates(self):
+        boss = manager(self.out)
+        candidates = [
+            ClipCandidate(
+                start=index * 30.0,
+                end=index * 30.0 + 25.0,
+                title=f"Kandidat {index + 1}",
+                score=90.0 - index,
+            )
+            for index in range(6)
+        ]
+        meta = {
+            "id": "abc123",
+            "title": "Podcast",
+            "duration": 200.0,
+            "webpage_url": "https://youtu.be/abc123",
+        }
+
+        with patch(
+            "clippergod.pipeline.candidates.generate", return_value=candidates,
+        ):
+            count, _ranges, _summary, warning = boss._publish_preview(
+                "https://youtu.be/abc123", meta, [], "reach", 3, "fill",
+                preview_only=True,
+            )
+
+        project = ProjectStore(self.out / "project.cgproj").load()
+        self.assertIsNone(warning)
+        self.assertEqual(count, 3)
+        self.assertEqual(len(project.clips), 3)
+        self.assertEqual(
+            [clip.title for clip in project.clips],
+            ["Kandidat 1", "Kandidat 2", "Kandidat 3"],
+        )
+        self.assertEqual(project.extra["candidate_limit"], 3)
+
     def test_ollama_ranking_selects_candidates_for_render_and_marks_them(self):
         words = [
             Word(word.text, word.start + index * 30, word.end + index * 30)
@@ -192,6 +228,7 @@ class JobTest(unittest.TestCase):
         self.assertGreaterEqual(len(rank.call_args.args[0]), 2)
         self.assertIn("source_metadata", rank.call_args.kwargs)
         project = ProjectStore(self.out / "project.cgproj").load()
+        self.assertEqual(len(project.clips), 1)
         selected_id = project.extra["ollama_selection"]["selected_clip_ids"][0]
         selected = project.clip(selected_id)
         self.assertIsNotNone(selected)

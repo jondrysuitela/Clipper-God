@@ -214,6 +214,20 @@ class StudioTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(content, b"downloaded-video")
 
+    def test_source_preview_prefers_workspace_h264_proxy(self):
+        project = ProjectStore(self.path).load()
+        project.media.path = str(self.video)
+        proxy = self.path.parent / "source" / "preview-test.mp4"
+        proxy.parent.mkdir()
+        proxy.write_bytes(b"browser-compatible-preview")
+        project.extra["preview_proxy"] = str(proxy)
+        ProjectStore(self.path).save(project)
+
+        status, content = self.get("/api/source")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(content, b"browser-compatible-preview")
+
     def test_local_hook_analysis_is_persisted_without_changing_primary_score(self):
         _, body = self.get("/api/project")
         clip = json.loads(body)["clips"][0]
