@@ -1,0 +1,38 @@
+{
+  "boundary": {
+    "min_pause": 0.18,
+    "good_pause": 0.35,
+    "start_window": 2.0,
+    "end_window": 2.5,
+    "accept_score": 0.7,
+    "shift_score": 0.45,
+    "proximity_penalty": 0.1,
+    "min_duration": 8.0,
+    "max_duration": 180.0
+  },
+  "reframe": {
+    "out_ratio": 0.5625,
+    "fps": 30,
+    "deadband_px": 12.0,
+    "ema_alpha": 0.16,
+    "max_step_px": 9.0,
+    "headroom": 0.08,
+    "poly_degree": 3,
+    "max_residual_ratio": 0.02
+  },
+  "candidate": {
+    "target": "watch",
+    "min_duration": null,
+    "max_duration": null,
+    "max_candidates": 40,
+    "overlap_ratio": 0.5,
+    "long_pause": 0.55
+  },
+  "export": {
+    "fps": 30,
+    "crf": 20,
+    "preset": "medium",
+    "bitrate_mbps": 10.0,
+    "max_bitrate_mbps": 12.0
+  }
+}

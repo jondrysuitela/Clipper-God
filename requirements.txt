@@ -1,0 +1,9 @@
+# Dependensi runtime ClipperGod (Windows, Python 3.11+)
+# Pasang: pip install -r requirements.txt
+
+faster-whisper>=1.0          # ASR word-level timestamp
+av>=11,<17                   # PyAV 17+ removes metadata_errors used by faster-whisper
+opencv-python>=4.8           # baca video, YuNet, metrik frame
+numpy>=1.26                  # sinyal, filter, DNA
+imageio-ffmpeg>=0.5          # FFmpeg cadangan bila tidak ada di PATH
+yt-dlp>=2025.1               # unduh video dari URL YouTube

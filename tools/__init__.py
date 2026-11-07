@@ -1,0 +1,1 @@
+"""Skrip bantu pengembangan ClipperGod."""

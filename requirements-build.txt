@@ -1,0 +1,3 @@
+# Install the application runtime dependencies and PyInstaller in the build environment.
+-r requirements.txt
+pyinstaller>=6.11

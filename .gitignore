@@ -1,0 +1,40 @@
+# ── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Build outputs ─────────────────────────────────────────────────────────
+build/
+dist/
+
+# ── Model (README: models/ tidak ikut repo, diunduh tools/fetch_face_model.py) ──
+models/*.onnx
+models/*.bin
+*.onnx
+
+# ── Media biner lokal ─────────────────────────────────────────────────────
+*.mp4
+*.m4a
+*.mov
+*.mkv
+*.webm
+*.wav
+*.mp3
+*.flac
+
+# ── Ruang kerja studio: sumber, klip, proxy (~1 GB, artefak lokal) ────────
+studio/
+
+# ── Runtime alat Zwork ────────────────────────────────────────────────────
+.zwork/
+
+# ── Sistem & editor ───────────────────────────────────────────────────────
+Thumbs.db
+desktop.ini
+.DS_Store
+*.log
