@@ -40,6 +40,24 @@ from .project.workspaces import WorkspaceRegistry
 UI_FILE = Path(__file__).resolve().parents[1] / "ui" / "ClipperGod-Prototipe-Interaktif.html"
 ASSETS = UI_FILE.parent / "assets"
 STATUSES = ("candidate", "approved", "rejected")
+VIDEO_EXTENSIONS = {".avi", ".m4v", ".mkv", ".mov", ".mp4", ".webm"}
+
+
+def _local_source_file(root: Path, project) -> Path | None:
+    source = Path(project.media.path)
+    if source.is_file():
+        return source
+    source_id = str(project.extra.get("source_id") or "")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{6,64}", source_id):
+        return None
+    source_dir = root / "source"
+    if not source_dir.is_dir():
+        return None
+    matches = [
+        path for path in source_dir.glob(f"*-{source_id}.*")
+        if path.is_file() and path.suffix.lower() in VIDEO_EXTENSIONS
+    ]
+    return max(matches, key=lambda path: path.stat().st_mtime) if matches else None
 
 PICK_SCRIPT = (
     "import tkinter as tk\n"
@@ -349,7 +367,9 @@ def make_handler(target: str | Path, transcriber_factory=None) -> type[BaseHTTPR
                         self._json({"error": f"proyek tidak bisa dibuka: {exc}"}, 400)
                         return
                 payload = project.to_dict()
-                payload["media"]["local_available"] = Path(project.media.path).is_file()
+                payload["media"]["local_available"] = (
+                    _local_source_file(root, project) is not None
+                )
                 self._json({**payload, "empty": False, "out_dir": str(root)})
                 return
 
@@ -362,8 +382,9 @@ def make_handler(target: str | Path, transcriber_factory=None) -> type[BaseHTTPR
                     self._json({"error": "belum ada proyek"}, 404)
                     return
                 with store.locked():
-                    source = Path(store.load().media.path)
-                if not source.is_file():
+                    project = store.load()
+                source = _local_source_file(root, project)
+                if source is None:
                     self._json({"error": "video sumber lokal tidak tersedia"}, 404)
                     return
                 ctype = mimetypes.guess_type(source.name)[0] or "video/mp4"

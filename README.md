@@ -176,17 +176,17 @@ mengunduh atau membundel font. Seret caption pada preview untuk mengatur posisin
 render berikutnya dan klip yang sudah dibakar perlu dirender ulang.
 
 Klik **Buat klip**, tempel URL YouTube atau pilih file, lalu tentukan target. Tahap
-pertama hanya membaca metadata, mengunduh audio URL saja bila perlu, lalu memakai ASR
-`tiny` untuk pemindaian hook awal di seluruh audio. Ollama menilai cuplikan teks kandidat;
-workspace hanya menyimpan kata pada rentang kandidat, bukan transkrip seluruh sumber.
-Video penuh belum diunduh atau dirender pada tahap ini. Pilih kandidat untuk
-**Analisis visual** (unduh video URL hanya pada tahap ini); pemindaian wajah dan ASR
-model pilihan dibatasi ke rentang kandidat terpilih. Transkrip akurat disimpan agar
-tombol **Render final** tidak mengulang ASR. File lokal memakai preview sumber dengan
-caption overlay yang bisa diubah langsung. Setelah render, tombol **Preview sumber**
-kembali ke overlay caption yang bisa diedit. Preview sumber bukan simulasi crop/framing;
-preview YouTube memakai iframe dan tidak dapat menampilkan framing lokal atau sinkronisasi
-caption yang akurat. Render final menggunakan renderer yang sama dengan pipeline.
+pertama membaca metadata YouTube (termasuk chapter bila tersedia), mengunduh audio saja,
+lalu memakai ASR `tiny` untuk mencari timestamp kandidat di seluruh audio. Pemindaian
+ringan ini diperlukan bila tidak ada chapter; teks penuhnya tidak disimpan. Ollama memberi
+peringkat pada cuplikan kandidat dengan konteks metadata, lalu memilih sesuai jumlah klip.
+Workspace hanya menyimpan kata pada rentang kandidat, bukan transkrip seluruh sumber.
+Setelah itu video diunduh agar kandidat bisa dipreview lokal di Studio. Pilih kandidat
+untuk **Analisis visual**: ASR model pilihan dan pemindaian wajah hanya memproses rentang
+klip terpilih. Transkrip akurat disimpan agar tombol **Render final** tidak mengulang ASR.
+Preview sumber menampilkan video lokal dengan caption overlay yang bisa diubah langsung;
+preview ini bukan simulasi crop/framing final. Render final menggunakan renderer yang
+sama dengan pipeline.
 Gunakan **Batalkan job** pada toolbar atau tombol batal di dialog untuk menghentikan proses.
 Job berjalan di worker terpisah agar worker dapat dihentikan paksa tanpa menutup Studio.
 Membatalkan job membuang proyek yang sedang diproses beserta data sebelumnya di dalamnya.

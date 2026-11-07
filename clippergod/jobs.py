@@ -36,6 +36,7 @@ from .pipeline.download import (
 )
 from .pipeline.media import import_media
 from .pipeline.runner import OUTPUT_FORMATS, RunConfig, run, words_to_dicts
+from .project.schema import fingerprint_file
 from .progress import CancelToken, CancelledError, Progress
 
 #: Peta tahap mesin ke rentang persen keseluruhan.
@@ -106,7 +107,7 @@ class Job:
             self.stage = "pilih_klip"
             self.percent = 100.0
             self.clips = clips
-            self.message = f"{clips} kandidat siap; pilih klip untuk analisis visual"
+            self.message = f"{clips} kandidat siap untuk pratinjau lokal dan ASR klip terpilih"
             self.finished = time.time()
         self._emit()
 
@@ -597,7 +598,9 @@ class JobManager:
             ]
             try:
                 ranked = rank_hooks(
-                    hook_texts, OllamaConfig(model=ollama_model, timeout=120.0)
+                    hook_texts,
+                    OllamaConfig(model=ollama_model, timeout=120.0),
+                    source_metadata=meta,
                 )
                 if cancel is not None:
                     cancel.raise_if_cancelled()
@@ -809,15 +812,44 @@ class JobManager:
                 cancel=job.cancel_token, preview_only=defer_video,
             )
             job.cancel_token.raise_if_cancelled()
+            job.warning = warning
+            job.update("hooks", 32, selection_summary)
             if defer_video:
                 from .project.store import ProjectStore
+
+                if source_url:
+                    job.update(
+                        "video_preview", 33,
+                        "mengunduh video untuk pratinjau kandidat lokal",
+                    )
+
+                    def on_preview_video(percent: float, note: str) -> None:
+                        job.update(
+                            "video_preview",
+                            33 + percent * 0.65,
+                            f"video pratinjau · {percent:.0f}%",
+                        )
+
+                    video = self._download(
+                        source_url,
+                        self.out_dir / "source",
+                        progress=on_preview_video,
+                        cancel=job.cancel_token,
+                    )
+                    job.cancel_token.raise_if_cancelled()
+                    store = ProjectStore(self.out_dir / "project.cgproj")
+                    with store.locked():
+                        project = store.load()
+                        project.media.path = str(video)
+                        project.media.fingerprint = fingerprint_file(video)
+                        store.save(project)
 
                 preview_project = ProjectStore(
                     self.out_dir / "project.cgproj"
                 ).load()
                 (self.out_dir / "transcript.json").write_text(
                     json.dumps({
-                        "video": str(video or source),
+                        "video": preview_project.media.path,
                         "language": language,
                         "model": scan_model,
                         "scope": "candidate_windows",
@@ -825,8 +857,6 @@ class JobManager:
                     }, ensure_ascii=False, indent=2),
                     encoding="utf-8",
                 )
-            job.warning = warning
-            job.update("hooks", 32, selection_summary)
             if defer_video:
                 job.finish_ready(hooks)
                 job.update(message=selection_summary)
@@ -919,6 +949,12 @@ class JobManager:
             job.cancel_token.raise_if_cancelled()
             if video is None:
                 raise RuntimeError("video sumber tidak tersedia")
+            if is_url(source):
+                with store.locked():
+                    project = store.load()
+                    project.media.path = str(video)
+                    project.media.fingerprint = fingerprint_file(video)
+                    store.save(project)
             if not words:
                 job.update("transcribe_clip", 12, f"menyiapkan audio klip · ASR {model}")
                 with tempfile.TemporaryDirectory(prefix="cg-clip-asr-") as tmp:

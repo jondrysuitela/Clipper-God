@@ -1373,7 +1373,9 @@ function setJobUi(job) {
   $("#jobMsg").textContent = (job.error || job.message || "") + elapsed;
 
   const stage = job.stage || "";
-  const first = ["metadata", "audio", "download", "import", "audio_extract"].includes(stage);
+  const first = [
+    "metadata", "audio", "download", "import", "audio_extract", "video_preview",
+  ].includes(stage);
   const index = first ? 0 : ["model_load", "transcribe", "transcribe_clip"].includes(stage) ? 1 : 2;
   [["#js1", 0], ["#js2", 1], ["#js3", 2]].forEach(([sel, i]) => {
     const el = $(sel);

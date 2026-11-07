@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 import threading
 import time
@@ -16,7 +17,7 @@ import numpy as np
 from clippergod.core.models import Word
 from clippergod.jobs import Job, JobManager, _words_in_candidate_windows
 from clippergod.pipeline.local_hook_ai import HookAnalysis, OllamaUnavailableError
-from clippergod.project.schema import MediaRef, Project
+from clippergod.project.schema import Clip, MediaRef, Project, fingerprint_file
 from clippergod.project.store import ProjectStore
 
 SENTENCES = [
@@ -168,7 +169,7 @@ class JobTest(unittest.TestCase):
             audio_extractor=lambda src, dst: dst,
         )
 
-        def rank_last_first(candidates, _config):
+        def rank_last_first(candidates, _config, **_kwargs):
             return [
                 (candidate_id, HookAnalysis(95.0 - index, ("Strong opening",)))
                 for index, (candidate_id, _text) in enumerate(reversed(candidates))
@@ -189,6 +190,7 @@ class JobTest(unittest.TestCase):
 
         self.assertEqual(job["status"], "done", job)
         self.assertGreaterEqual(len(rank.call_args.args[0]), 2)
+        self.assertIn("source_metadata", rank.call_args.kwargs)
         project = ProjectStore(self.out / "project.cgproj").load()
         selected_id = project.extra["ollama_selection"]["selected_clip_ids"][0]
         selected = project.clip(selected_id)
@@ -261,6 +263,47 @@ class JobTest(unittest.TestCase):
         self.assertEqual(
             saved.extra["accurate_transcripts"][clip.id]["model"], "medium",
         )
+
+    def test_selected_youtube_candidate_uses_downloaded_local_source_for_preview(self):
+        source_url = "https://www.youtube.com/watch?v=example123"
+        clip = Clip(start=0.0, end=1.0, title="Hook")
+        project = Project(
+            name="YouTube",
+            media=MediaRef(path=source_url, duration=10.0),
+            words=[Word("hook", 0.1, 0.5)],
+            clips=[clip],
+            extra={"source_url": source_url, "source_id": "example123"},
+        )
+        project.extra["accurate_transcripts"] = {
+            clip.id: {
+                "model": "medium",
+                "language": "id",
+                "source_fingerprint": "",
+                "start": clip.start,
+                "end": clip.end,
+                "word_count": 1,
+            },
+        }
+        store = ProjectStore(self.out / "project.cgproj")
+        store.save(project)
+        boss = JobManager(self.out, downloader=lambda *_args, **_kwargs: self.video)
+        job = Job(id="youtube-preview-test", out_dir=str(self.out))
+
+        with patch(
+            "clippergod.jobs.run",
+            return_value=SimpleNamespace(clips=[{"video": None}]),
+        ):
+            boss._process_selected_work(
+                job, source_url, clip.id, clip.start, clip.end, clip.title,
+                "reach", 1, "fill", "portrait", False, "id", "medium",
+                None, True, source_url, "example123",
+            )
+
+        self.assertEqual(job.status, "done", job.error)
+        saved = store.load()
+        self.assertEqual(saved.media.path, str(self.video))
+        self.assertEqual(saved.media.fingerprint, fingerprint_file(self.video))
+        self.assertEqual(saved.extra["source_url"], source_url)
 
     def test_second_job_is_refused_while_running(self):
         boss = manager(self.out, delay=1.5)
@@ -411,7 +454,7 @@ class JobTest(unittest.TestCase):
         self.assertEqual(project.extra.get("source_id"), "abc123")
         self.assertNotIn("preview", project.extra)
 
-    def test_deferred_youtube_job_does_not_download_video(self):
+    def test_deferred_youtube_job_downloads_source_for_local_candidate_preview(self):
         video_downloads: list[str] = []
         meta = {"id": "abc123", "title": "Uji", "duration": 22.0,
                 "thumbnail": "", "uploader": "kanal", "webpage_url": "https://youtu.be/abc123"}
@@ -432,10 +475,16 @@ class JobTest(unittest.TestCase):
         job = self.wait(boss)
 
         self.assertEqual(job["status"], "ready", job)
-        self.assertEqual(video_downloads, [])
+        self.assertEqual(video_downloads, ["https://youtu.be/abc123"])
         project = ProjectStore(self.out / "project.cgproj").load()
         self.assertEqual(project.extra["source_url"], "https://youtu.be/abc123")
         self.assertTrue(project.extra["preview"])
+        self.assertEqual(project.media.path, str(self.video))
+        self.assertEqual(project.media.fingerprint, fingerprint_file(self.video))
+        transcript_data = json.loads(
+            (self.out / "transcript.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(transcript_data["scope"], "candidate_windows")
 
     def test_unsupported_url_rejected(self):
         boss = manager(self.out)

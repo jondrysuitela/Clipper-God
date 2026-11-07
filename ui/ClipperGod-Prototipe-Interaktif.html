@@ -1113,9 +1113,9 @@ select.inp{appearance:none}
           <span>Pakai Ollama untuk menilai hook dan memilih kandidat terbaik</span>
         </label>
         <input class="inp" id="ollamaModel" value="llama3.2" aria-label="Model Ollama untuk pemilihan hook">
-        <div class="row-sub">Pemindaian awal memakai ASR tiny untuk menemukan kandidat di seluruh audio (model mungkin diunduh saat pertama dipakai). Ollama menilai teks kandidat; workspace hanya menyimpan transkrip di rentang kandidat, bukan seluruh video.</div>
+        <div class="row-sub">Pemindaian awal memakai ASR tiny untuk mencari timestamp hook di seluruh audio; transkrip lengkapnya tidak disimpan. Ollama menilai potongan teks dengan konteks judul, deskripsi, dan chapter YouTube bila tersedia, lalu memilih sesuai jumlah klip.</div>
       </div>
-      <div class="row-sub">Setelah memilih klip, ASR model di atas mentranskripsikan ulang hanya audio klip tersebut. Video dan render final diproses sesuai tindakanmu setelah kandidat ditinjau.</div>
+      <div class="row-sub">Setelah kandidat dipilih, video diunduh agar pratinjau tampil lokal di Studio. Pilih klip untuk ASR akurat yang hanya memproses audio kandidat; render final tetap menunggu perintahmu.</div>
       <div id="jobBox" hidden>
         <div class="steps">
           <div class="step" id="js1"><span class="spin"></span><b>Unduh &amp; import</b><span>—</span></div>

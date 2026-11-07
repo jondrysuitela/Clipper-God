@@ -193,6 +193,27 @@ class StudioTest(unittest.TestCase):
             self.assertEqual(response.status, 206)
             self.assertEqual(response.read(), b"fake-")
 
+    def test_source_preview_uses_downloaded_youtube_video(self):
+        project = ProjectStore(self.path).load()
+        project.media.path = "https://www.youtube.com/watch?v=example123"
+        project.extra.update({
+            "source_url": project.media.path,
+            "source_id": "example123",
+        })
+        ProjectStore(self.path).save(project)
+        source_dir = self.path.parent / "source"
+        source_dir.mkdir()
+        downloaded = source_dir / "video-example123.mp4"
+        downloaded.write_bytes(b"downloaded-video")
+
+        _, body = self.get("/api/project")
+        payload = json.loads(body)
+        self.assertTrue(payload["media"]["local_available"])
+
+        status, content = self.get("/api/source")
+        self.assertEqual(status, 200)
+        self.assertEqual(content, b"downloaded-video")
+
     def test_local_hook_analysis_is_persisted_without_changing_primary_score(self):
         _, body = self.get("/api/project")
         clip = json.loads(body)["clips"][0]

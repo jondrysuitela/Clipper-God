@@ -59,12 +59,38 @@ def probe_url(url: str) -> dict:
         raise DownloadError(f"metadata gagal dibaca: {first.replace('ERROR: ', '')[:200]}") from exc
     if not info:
         raise DownloadError("tidak ada video pada URL itu")
+    raw_chapters = info.get("chapters")
+    chapters = []
+    if isinstance(raw_chapters, list):
+        for chapter in raw_chapters[:40]:
+            if not isinstance(chapter, dict):
+                continue
+            start = chapter.get("start_time")
+            end = chapter.get("end_time")
+            title = chapter.get("title")
+            if (
+                isinstance(start, (int, float))
+                and not isinstance(start, bool)
+                and isinstance(end, (int, float))
+                and not isinstance(end, bool)
+                and end > start >= 0
+                and isinstance(title, str)
+                and title.strip()
+            ):
+                chapters.append({
+                    "start_time": float(start),
+                    "end_time": float(end),
+                    "title": title.strip()[:200],
+                })
+    description = info.get("description")
     return {
         "id": info.get("id", ""),
-        "title": info.get("title") or "Tanpa judul",
+        "title": str(info.get("title") or "Tanpa judul")[:200],
         "duration": float(info.get("duration") or 0.0),
         "thumbnail": info.get("thumbnail") or "",
-        "uploader": info.get("uploader") or "",
+        "uploader": str(info.get("uploader") or "")[:200],
+        "description": description[:2000] if isinstance(description, str) else "",
+        "chapters": chapters,
         "webpage_url": info.get("webpage_url") or url,
     }
 

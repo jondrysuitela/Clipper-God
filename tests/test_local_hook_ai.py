@@ -87,6 +87,15 @@ class TestLocalHookAI(unittest.TestCase):
         result = rank_hooks(
             [("first", "A transcript"), ("second", "Why did this happen?")],
             self.config,
+            source_metadata={
+                "title": "Podcast title",
+                "description": "Episode description",
+                "chapters": [{
+                    "start_time": 30,
+                    "end_time": 60,
+                    "title": "The surprising answer",
+                }],
+            },
         )
 
         self.assertEqual([candidate_id for candidate_id, _ in result], ["second", "first"])
@@ -94,6 +103,9 @@ class TestLocalHookAI(unittest.TestCase):
         payload = json.loads(opener.open.call_args_list[1].args[0].data)
         self.assertEqual(payload["format"]["properties"]["candidates"]["maxItems"], 24)
         self.assertIn("do not invent timestamps", payload["messages"][1]["content"])
+        context = json.loads(payload["messages"][1]["content"].split(":\n", 1)[1])
+        self.assertEqual(context["source_metadata"]["title"], "Podcast title")
+        self.assertEqual(context["source_metadata"]["chapters"][0]["start_time"], 30)
 
     @patch("clippergod.pipeline.local_hook_ai.urllib.request.build_opener")
     def test_rank_hooks_rejects_missing_candidate_result(self, build_opener):
